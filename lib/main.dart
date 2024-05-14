@@ -31,25 +31,9 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
   void connect() async {
     await polar.connectToDevice(identifier);
 
-    // polar.sdkFeatureReady.listen((e) {
-    //   log(e.feature.toString());
-    // });
-    // await polar.sdkFeatureReady.firstWhere(
-    //   (e) =>
-    //       e.identifier == identifier &&
-    //       e.feature == PolarSdkFeature.onlineStreaming,
-    // );
-    // final availabletypes =
-    //     await polar.getAvailableOnlineStreamDataTypes(identifier);
-
-    // log(availabletypes.toString());
-  }
-
-  void disconnect() async {
-    polar.disconnectFromDevice(identifier);
-  }
-
-  void getHeart() async {
+    polar.sdkFeatureReady.listen((e) {
+      log(e.feature.toString());
+    });
     await polar.sdkFeatureReady.firstWhere(
       (e) =>
           e.identifier == identifier &&
@@ -58,7 +42,19 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
     final availabletypes =
         await polar.getAvailableOnlineStreamDataTypes(identifier);
 
-    debugPrint(availabletypes.toString());
+    log(availabletypes.toString());
+  }
+
+  void disconnect() async {
+    polar.disconnectFromDevice(identifier);
+  }
+
+  void getHeart() async {
+    await polar.requestStreamSettings(identifier, PolarDataType.gyro);
+
+    polarHr = polar.startHrStreaming(identifier).listen(
+          (e) => log(e.samples[0].hr.toString()),
+        );
   }
 
   late StreamSubscription polarHr;
@@ -66,12 +62,6 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
   @override
   void initState() {
     super.initState();
-
-    polarHr = polar.startHrStreaming(identifier).listen((e) => setState(() {
-          log(e.samples[0].hr.toString());
-        }));
-
-    polarHr.onData((data) => log(data));
   }
 
   @override
