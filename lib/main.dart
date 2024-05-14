@@ -50,9 +50,9 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
   }
 
   void getHeart() async {
-    await polar.requestStreamSettings(identifier, PolarDataType.gyro);
+    await polar.requestStreamSettings(identifier, PolarDataType.hr);
 
-    polarHr = polar.startHrStreaming(identifier).listen(
+    polar.startHrStreaming(identifier).listen(
           (e) => log(e.samples[0].hr.toString()),
         );
   }
