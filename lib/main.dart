@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:polar/polar.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(MyApp());
@@ -23,46 +24,119 @@ class HeartRateScreen extends StatefulWidget {
 
 class _HeartRateScreenState extends State<HeartRateScreen> {
   int heartRate = 0;
-  static const identifier = '4D614220';
+
+  String identifier = '4D614220';
   Polar polar = Polar();
 
-  bool start = false;
+  List<String> listDevice = [];
 
-  void connect() async {
-    await polar.connectToDevice(identifier);
+  bool firstStart = true;
 
-    polar.sdkFeatureReady.listen((e) {
-      log(e.feature.toString());
+  void scanner() {
+    polar.requestPermissions();
+
+    polar.searchForDevice().listen((value) {
+      listDevice.add(value.deviceId);
+      log(value.deviceId.toString());
+      setState(() {});
     });
+  }
+
+  void connect(String identifier) async {
+    // polar.connectToDevice(identifier).then((_) {
+    //   setState(() {
+    //     firstStart = false;
+    //   });
+    // });
+
+    polar.connectToDevice(identifier);
+
+    // polar.sdkFeatureReady.listen((e) {
+    //   log(e.feature.toString());
+    // });
+    // await polar.sdkFeatureReady.firstWhere(
+    //   (e) =>
+    //       e.identifier == identifier &&
+    //       e.feature == PolarSdkFeature.onlineStreaming,
+    // );
+    // final availabletypes =
+    //     await polar.getAvailableOnlineStreamDataTypes(identifier);
+
+    // log(availabletypes.toString());
+  }
+
+  void disconnect(identifier) async {
+    polar.disconnectFromDevice(identifier);
+  }
+
+  void getHeart() async {
+    final hrData = await polar.startHrStreaming(identifier).first;
+    log(hrData.samples.first.contactStatus.toString());
+
+    // final availabletypes =
+    // await polar.getAvailableOnlineStreamDataTypes(identifier);
+
+    // log(availabletypes.toString());
+    // await polar.requestStreamSettings(identifier, PolarDataType.hr);
+  }
+
+  late StreamSubscription polarHr;
+
+  void streamWhenReady() async {
+    polar.requestRecordingStatus(identifier).then((onValue) {
+      log(onValue.entryId.toString());
+    });
+
     await polar.sdkFeatureReady.firstWhere(
       (e) =>
           e.identifier == identifier &&
           e.feature == PolarSdkFeature.onlineStreaming,
     );
+
     final availabletypes =
         await polar.getAvailableOnlineStreamDataTypes(identifier);
 
-    log(availabletypes.toString());
+    debugPrint('available types: $availabletypes');
+
+    if (availabletypes.contains(PolarDataType.hr)) {
+      polar
+          .startHrStreaming(identifier)
+          .listen((e) => debugPrint('HR data received'));
+    }
+    if (availabletypes.contains(PolarDataType.ecg)) {
+      polar
+          .startEcgStreaming(identifier)
+          .listen((e) => debugPrint('ECG data received'));
+    }
+    if (availabletypes.contains(PolarDataType.acc)) {
+      polar
+          .startAccStreaming(identifier)
+          .listen((e) => debugPrint('ACC data received'));
+    }
   }
 
-  void disconnect() async {
-    polar.disconnectFromDevice(identifier);
-  }
+  // void getPrefs() async {
+  // final SharedPreferences prefs = await SharedPreferences.getInstance();
 
-  void getHeart() async {
-    await polar.requestStreamSettings(identifier, PolarDataType.hr);
+  // prefs.clear();
 
-    polar.startHrStreaming(identifier).listen(
-          (e) => log(e.samples[0].hr.toString()),
-        );
-  }
+  // String? identifier = prefs.getString("identifier");
 
-  late StreamSubscription polarHr;
+  // log(identifier.toString());
 
-  @override
-  void initState() {
-    super.initState();
-  }
+  // if (identifier == null) {
+  // log("true");
+  // firstStart = true;
+  // } else {
+  // log("false");
+  // firstStart = false;
+
+  // prefs.setString("identifier", identifier);
+  // disconnect(identifier);
+  // connect(identifier);
+  // }
+  // setState(() {});
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -78,25 +152,75 @@ class _HeartRateScreenState extends State<HeartRateScreen> {
               'Heart Rate: $heartRate',
               style: TextStyle(fontSize: 24),
             ),
-            SizedBox(height: 20),
+            firstStart
+                ? Column(
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        height: 200,
+                        child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: listDevice.length,
+                            itemBuilder: (context, index) {
+                              return GestureDetector(
+                                onTap: () {
+                                  connect(listDevice[index]);
+                                },
+                                child: Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12.0),
+                                    child: Text(
+                                      listDevice[index].toString(),
+                                      style: const TextStyle(
+                                        fontSize: 30,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                      ),
+                      ElevatedButton(
+                        onPressed: scanner,
+                        child: Text('scanner'),
+                      ),
+                    ],
+                  )
+                : Container(),
+            // ElevatedButton(
+            //   onPressed: getHeart,
+            //   child: Text('getHeart'),
+            // ),
+            const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: connect,
+              onPressed: () async {
+                await polar.connectToDevice(identifier);
+                // streamWhenReady();
+              },
               child: Text('connect'),
             ),
             ElevatedButton(
-              onPressed: disconnect,
+              onPressed: () async {
+                await polar.disconnectFromDevice(identifier);
+              },
               child: Text('disconnect'),
             ),
-            StreamBuilder(
-              stream: polar.startHrStreaming(identifier),
-              builder: (context, snapshot) {
-                return Text(snapshot.data.toString());
-              },
-            ),
             ElevatedButton(
-              onPressed: getHeart,
+              onPressed: () async {
+                getHeart();
+              },
               child: Text('get'),
             ),
+            // StreamBuilder(
+            //   stream: polar.startHrStreaming(identifier),
+            //   builder: (context, snapshot) {
+            //     return Text(snapshot.data.toString());
+            //   },
+            // ),
+            // ElevatedButton(
+            //   onPressed: getHeart,
+            //   child: Text('get'),
+            // ),
           ],
         ),
       ),
